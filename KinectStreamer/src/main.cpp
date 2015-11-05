@@ -1,9 +1,9 @@
 #include "streamer.h"
 #include <iostream>
 
-void callback()
+void callback(uint16_t *_depth_buffer)
 {
-	std::cout << '.' << std::endl;
+	std::cout << _depth_buffer[0] << std::endl;
 }
 
 int main()

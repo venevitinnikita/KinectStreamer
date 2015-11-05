@@ -7,6 +7,10 @@
 
 // TODO streamer api functions for Java (init_func, get_depth (callback probably))
 
+#define DEPTH_IMAGE_WIDTH 640
+#define DEPTH_IMAGE_HEIGHT 480
+#define DEPTH_BUFFER_SIZE DEPTH_IMAGE_WIDTH*DEPTH_IMAGE_HEIGHT*16
+
 class Mutex
 {
 private:
@@ -38,7 +42,7 @@ private:
 	freenect_context *m_context;
 	pthread_t m_thread;
 
-	void (*m_callback)();
+	void (*m_callback)(uint16_t *);
 
 	volatile bool m_stop;
 
@@ -46,27 +50,27 @@ private:
 	{
 		Device *device = static_cast<Device *>(_device_loop);
 		device->device_loop();
-		return NULL;
+		pthread_exit(NULL);
 	}
 
 	freenect_device *m_device;
 
-	static void freenect_depth_callback(freenect_device *dev, void *depth,
+	static void freenect_depth_callback(freenect_device *dev, void *_depth,
 			uint32_t timestamp)
 	{
-		// TODO convert data and call m_callback
+		uint16_t *depth_buffer = static_cast<uint16_t *>(_depth);
 		Device *device = static_cast<Device *>(freenect_get_user(dev));
-		device->kinect_callback();
+		device->kinect_callback(depth_buffer);
 	}
 
 public:
 
-	Device(void (*_depth_callback)()) :
+	Device(void (*_depth_callback)(uint16_t *)) :
 			m_callback(_depth_callback), m_stop(false)
 	{
 		freenect_init(&m_context, NULL);
 		freenect_select_subdevices(m_context,
-				static_cast<freenect_device_flags>(FREENECT_DEVICE_CAMERA));
+				static_cast<freenect_device_flags>(FREENECT_DEVICE_MOTOR | FREENECT_DEVICE_CAMERA));
 
 		pthread_create(&m_thread, NULL, pthread_callback, (void*) this);
 
@@ -80,12 +84,14 @@ public:
 
 	void start()
 	{
+		freenect_set_led(m_device, LED_YELLOW);
 		freenect_start_depth(m_device);
 	}
 
 	void stop()
 	{
 		freenect_stop_depth(m_device);
+		freenect_set_led(m_device, LED_BLINK_GREEN);
 	}
 
 	~Device()
@@ -95,9 +101,9 @@ public:
 		freenect_shutdown(m_context);
 	}
 
-	void kinect_callback()
+	void kinect_callback(uint16_t *_depth_buffer)
 	{
-		(*m_callback)();
+		(*m_callback)(_depth_buffer);
 	}
 
 	void device_loop()
